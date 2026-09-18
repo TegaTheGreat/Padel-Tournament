@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Padel Knockout — 18 Teams</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --paper:#F6FAF7; --card:#FFFFFF; --card-alt:#EEF5EF;
+    --ink:#12302D; --muted:#6E8B85; --teal:#0F3D3B; --teal-soft:#7FA79F;
+    --accent:#5C8A1B; --border:#DCE7E2;
+    --radius:10px;
+    --font-display:'Oswald',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --font-body:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --name-size:14px; --pip-size:22px; --title-size:15px; --meta-size:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--paper);color:var(--ink);font-family:var(--font-body);line-height:1.45;padding:28px 24px 60px;}
+  .wrap{max-width:1600px;margin:0 auto;}
+
+  header.hero{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:24px;border-bottom:2px solid var(--border);padding-bottom:20px;margin-bottom:22px;}
+  h1{font-family:var(--font-display);font-weight:700;font-size:clamp(30px,4.5vw,46px);letter-spacing:0.3px;margin:0;line-height:1;color:var(--teal);}
+  h1 span{color:var(--accent);}
+  .hero-sub{color:var(--muted);font-size:14px;margin-top:8px;max-width:52ch;}
+  .stats{display:flex;gap:24px;}
+  .stat{text-align:right;}
+  .stat .num{font-family:var(--font-display);font-size:24px;color:var(--accent);line-height:1;}
+  .stat .lbl{font-size:11px;color:var(--muted);margin-top:3px;}
+
+  .toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:10px;}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted);}
+  .legend b{color:var(--ink);}
+  .btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  button.btn{font-family:var(--font-body);font-size:12px;font-weight:600;border-radius:8px;padding:8px 14px;cursor:pointer;border:1px solid var(--border);white-space:nowrap;background:#fff;color:var(--teal);}
+  button.btn:disabled{opacity:0.45;cursor:not-allowed;}
+  button#presentBtn{background:var(--teal);color:#fff;border-color:var(--teal);}
+  button#presentBtn:hover{background:#0B2E2C;}
+  button#resetBtn:hover{background:var(--card-alt);}
+
+  .auth-box{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .auth-box input[type=email]{font-family:var(--font-body);font-size:12.5px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);min-width:190px;}
+  .auth-note{font-size:11.5px;color:var(--muted);}
+
+  .status-row{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:20px;padding:4px 10px;}
+  .badge .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);}
+  .badge.editing{color:var(--accent);}
+  .badge.viewonly .dot{background:#C9A227;}
+  .badge.viewonly{color:#8A6D1A;}
+
+  .rounds{position:relative;display:flex;align-items:stretch;gap:34px;overflow-x:auto;padding:6px 6px 20px;}
+  #connectors{position:absolute;top:0;left:0;pointer-events:none;z-index:0;}
+  .round-col{min-width:225px;flex:0 0 225px;position:relative;z-index:1;}
+  .round-col.narrow{min-width:185px;flex:0 0 185px;}
+
+  .round-title{font-family:var(--font-display);font-size:var(--title-size);letter-spacing:0.4px;color:var(--teal);border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:14px;}
+  .round-count{color:var(--muted);font-weight:400;margin-left:6px;font-family:var(--font-body);font-size:11px;}
+
+  .stack{display:flex;flex-direction:column;justify-content:space-evenly;height:100%;gap:14px;}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;box-shadow:0 1px 2px rgba(15,61,59,0.05);}
+  .card.playin{background:var(--card-alt);}
+
+  .team-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;}
+  .team-row + .team-row{border-top:1px solid var(--border);}
+
+  .name{font-weight:600;font-size:var(--name-size);color:var(--ink);outline:none;border-bottom:1px dashed #B9CCC6;padding:1px 2px;min-width:36px;display:inline-block;}
+  .name:focus{border-bottom-color:var(--accent);}
+  .name.derived{border-bottom:none;cursor:default;}
+  .name.tbd{color:var(--muted);font-weight:500;font-style:italic;}
+  .name.won{color:var(--accent);}
+
+  .pips{display:flex;gap:3px;}
+  .pip{width:var(--pip-size);height:var(--pip-size);border-radius:50%;border:1px solid #C6D6D0;background:transparent;color:var(--muted);font-size:calc(var(--pip-size)*0.45);font-family:var(--font-body);font-weight:600;cursor:pointer;line-height:1;padding:0;}
+  .pip:hover{border-color:var(--accent);}
+  .pip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .pip:disabled{cursor:default;opacity:0.55;}
+
+  .match-meta{font-size:var(--meta-size);color:var(--muted);margin-top:6px;letter-spacing:0.2px;}
+
+  .champion-card{background:var(--card-alt);border:1px solid var(--accent);margin-top:16px;}
+  .champion-card .name{font-size:calc(var(--name-size) + 6px);}
+  .trophy-lbl{font-family:var(--font-display);font-size:11px;letter-spacing:1px;color:var(--muted);margin-bottom:8px;}
+
+  .roster-note{margin-top:32px;font-size:13px;color:var(--muted);border-top:1px solid var(--border);padding-top:16px;max-width:76ch;}
+  .roster-note b{color:var(--ink);}
+  .roster-note ul{margin:8px 0 0;padding-left:18px;}
+  .roster-note li{margin-bottom:4px;}
+
+  body.present{padding:18px 26px;}
+  body.present .toolbar .legend, body.present .roster-note, body.present .hero-sub, body.present .stats{display:none;}
+  body.present header.hero{margin-bottom:16px;padding-bottom:14px;}
+  body.present h1{font-size:clamp(26px,3vw,36px);}
+  body.present{--name-size:19px; --pip-size:30px; --title-size:19px; --meta-size:12px;}
+  body.present .round-col{min-width:270px;flex:0 0 270px;}
+  body.present .round-col.narrow{min-width:225px;flex:0 0 225px;}
+  body.present .card{padding:14px 16px;}
+  body.present .rounds{gap:44px;}
+  body.present #exitPresentBtn{display:inline-block;}
+  #exitPresentBtn{display:none;position:fixed;top:14px;right:14px;z-index:50;}
+
+  @media (max-width:900px){
+    .rounds{flex-direction:column;overflow-x:visible;gap:26px;}
+    .round-col,.round-col.narrow{min-width:0;flex:1 1 auto;}
+    #connectors{display:none;}
+    header.hero{flex-direction:column;align-items:flex-start;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div>
+      <h1>PADEL <span>KNOCKOUT</span></h1>
+      <p class="hero-sub">18 teams, single elimination. The draw opens at the Round of 16 — 14 teams go straight in, a play-in decides the last 2 spots. Every match is best of 3 games.</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="num">18</div><div class="lbl">Teams</div></div>
+      <div class="stat"><div class="num">17</div><div class="lbl">Matches</div></div>
+      <div class="stat"><div class="num">4</div><div class="lbl">Rounds</div></div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="legend">
+      <span><b>Names:</b> tap to rename.</span>
+      <span><b>Scoring:</b> tap 1/2/3 for whoever wins that game.</span>
+      <span><b>First to 2 games</b> advances.</span>
+    </div>
+    <div class="btns">
+      <div class="auth-box" id="authBox"></div>
+      <button id="resetBtn" class="btn" type="button" disabled>Reset all</button>
+      <button id="presentBtn" class="btn" type="button">Present on screen</button>
+    </div>
+  </div>
+
+  <div class="status-row">
+    <span class="badge viewonly" id="syncBadge"><span class="dot"></span><span id="syncBadgeText">Connecting…</span></span>
+  </div>
+
+  <div class="rounds" id="bracket">
+    <svg id="connectors"></svg>
+
+    <div class="round-col narrow">
+      <div class="round-title">Play-in <span class="round-count">2 matches</span></div>
+      <div class="stack" id="round-playin"></div>
+    </div>
+    <div class="round-col">
+      <div class="round-title">Round of 16 <span class="round-count">8 matches</span></div>
+      <div class="stack" id="round-r16"></div>
+    </div>
+    <div class="round-col">
+      <div class="round-title">Quarterfinals <span class="round-count">4 matches</span></div>
+      <div class="stack" id="round-qf"></div>
+    </div>
+    <div class="round-col">
+      <div class="round-title">Semifinals <span class="round-count">2 matches</span></div>
+      <div class="stack" id="round-sf"></div>
+    </div>
+    <div class="round-col">
+      <div class="round-title">Final <span class="round-count">1 match</span></div>
+      <div class="stack" id="round-final"></div>
+      <div class="card champion-card">
+        <div class="trophy-lbl">CHAMPION</div>
+        <span class="name derived tbd" id="champion-name">TBD</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="roster-note">
+    <b>How it works:</b>
+    <ul>
+      <li>14 teams go straight into the Round of 16 — type their names directly into the draw.</li>
+      <li>The other 4 teams play two play-in matches; the two winners fill the last 2 Round of 16 spots.</li>
+      <li>Every match is best of 3 games, standard padel/tennis scoring — 15, 30, 40, Game (win by two at deuce). Tap 1 / 2 / 3 for whoever wins that game; first to 2 games wins the match and advances automatically.</li>
+      <li><b>Editing:</b> enter your email above and click the link we send you — no password. Only pre-approved emails can make changes; anyone else can watch it update live, read-only.</li>
+      <li><b>Projecting:</b> open this page on the display laptop and hit "Present on screen" for a fullscreen, enlarged view. It updates live as your scorers enter results elsewhere.</li>
+    </ul>
+  </p>
+
+</div>
+
+<button id="exitPresentBtn" class="btn" type="button" style="background:var(--teal);color:#fff;border-color:var(--teal);">Exit present mode</button>
+
+<script>
+// =====================================================================
+// FILL THESE IN before deploying — Supabase → Settings → API
+// =====================================================================
+const SUPABASE_URL = "uqtqsevuckizsiceqkkp.supabase.co";
+const SUPABASE_ANON_KEY = "Ysb_publishable_-7OwkgFWawN_txT3Ex_-kg_apRYFcJp";
+// =====================================================================
+
+(function(){
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const T = id => ({t:'team', id});
+  const W = id => ({t:'win', id});
+
+  const matches = [
+    {id:'pm1', round:'round-playin', label:'Play-in A', A:T('t15'), B:T('t18')},
+    {id:'pm2', round:'round-playin', label:'Play-in B', A:T('t16'), B:T('t17')},
+    {id:'r16-1', round:'round-r16', label:'Round of 16', A:T('t1'),  B:W('pm1')},
+    {id:'r16-2', round:'round-r16', label:'Round of 16', A:T('t8'),  B:T('t9')},
+    {id:'r16-3', round:'round-r16', label:'Round of 16', A:T('t4'),  B:T('t13')},
+    {id:'r16-4', round:'round-r16', label:'Round of 16', A:T('t5'),  B:T('t12')},
+    {id:'r16-5', round:'round-r16', label:'Round of 16', A:T('t2'),  B:W('pm2')},
+    {id:'r16-6', round:'round-r16', label:'Round of 16', A:T('t7'),  B:T('t10')},
+    {id:'r16-7', round:'round-r16', label:'Round of 16', A:T('t3'),  B:T('t14')},
+    {id:'r16-8', round:'round-r16', label:'Round of 16', A:T('t6'),  B:T('t11')},
+    {id:'qf1', round:'round-qf', label:'Quarterfinal', A:W('r16-1'), B:W('r16-2')},
+    {id:'qf2', round:'round-qf', label:'Quarterfinal', A:W('r16-3'), B:W('r16-4')},
+    {id:'qf3', round:'round-qf', label:'Quarterfinal', A:W('r16-5'), B:W('r16-6')},
+    {id:'qf4', round:'round-qf', label:'Quarterfinal', A:W('r16-7'), B:W('r16-8')},
+    {id:'sf1', round:'round-sf', label:'Semifinal', A:W('qf1'), B:W('qf2')},
+    {id:'sf2', round:'round-sf', label:'Semifinal', A:W('qf3'), B:W('qf4')},
+    {id:'final', round:'round-final', label:'Final', A:W('sf1'), B:W('sf2')},
+  ];
+
+  function pipsHTML(matchId, side){
+    let html = '<div class="pips">';
+    for(let g=1; g<=3; g++){
+      html += `<button type="button" class="pip" data-match="${matchId}" data-side="${side}" data-game="${g}" aria-label="Game ${g}" disabled>${g}</button>`;
+    }
+    html += '</div>';
+    return html;
+  }
+
+  matches.forEach(m => {
+    const container = document.getElementById(m.round);
+    const card = document.createElement('div');
+    card.className = 'card match' + (m.round === 'round-playin' ? ' playin' : '');
+    card.setAttribute('data-match-id', m.id);
+    const aInner = m.A.t === 'team'
+      ? `<span class="name" data-team="${m.A.id}">Team ${m.A.id.slice(1)}</span>`
+      : `<span class="name derived tbd" data-slot="${m.id}-A">TBD</span>`;
+    const bInner = m.B.t === 'team'
+      ? `<span class="name" data-team="${m.B.id}">Team ${m.B.id.slice(1)}</span>`
+      : `<span class="name derived tbd" data-slot="${m.id}-B">TBD</span>`;
+    card.innerHTML = `
+      <div class="team-row" data-row="${m.id}-A">${aInner}${pipsHTML(m.id,'A')}</div>
+      <div class="team-row" data-row="${m.id}-B">${bInner}${pipsHTML(m.id,'B')}</div>
+      <div class="match-meta">${m.label}</div>`;
+    container.appendChild(card);
+  });
+
+  function defaultState(){
+    const names = {};
+    for(let i=1;i<=18;i++) names['t'+i] = 'Team ' + i;
+    const pips = {};
+    matches.forEach(m => { pips[m.id] = {A:[false,false,false], B:[false,false,false]}; });
+    return {names, pips};
+  }
+  function mergeDefaults(partial){
+    const d = defaultState();
+    return {
+      names: Object.assign(d.names, (partial||{}).names || {}),
+      pips: Object.assign(d.pips, (partial||{}).pips || {}),
+    };
+  }
+  let docState = defaultState();
+  let isEditor = false;
+
+  function matchWinner(matchId){
+    const mp = docState.pips[matchId];
+    const a = mp.A.filter(Boolean).length, b = mp.B.filter(Boolean).length;
+    if(a >= 2) return 'A';
+    if(b >= 2) return 'B';
+    return null;
+  }
+  function teamName(id){ return docState.names[id] || ('Team ' + id.slice(1)); }
+  function resolveRef(ref, state){
+    if(ref.t === 'team') return teamName(ref.id);
+    const m = state[ref.id];
+    return m && m.winnerName ? m.winnerName : null;
+  }
+
+  function recompute(){
+    const state = {};
+    matches.forEach(m => {
+      const nameA = resolveRef(m.A, state);
+      const nameB = resolveRef(m.B, state);
+      const w = (nameA && nameB) ? matchWinner(m.id) : null;
+      const winnerName = w === 'A' ? nameA : (w === 'B' ? nameB : null);
+      state[m.id] = {nameA, nameB, winner: w, winnerName};
+
+      [['A', nameA], ['B', nameB]].forEach(([side, name]) => {
+        const ref = side === 'A' ? m.A : m.B;
+        if(ref.t === 'team'){
+          const el = document.querySelector(`[data-team="${ref.id}"]`);
+          if(el) el.classList.toggle('won', w === side);
+        } else {
+          const slot = document.querySelector(`[data-slot="${m.id}-${side}"]`);
+          if(slot){
+            slot.textContent = name || 'TBD';
+            slot.classList.toggle('tbd', !name);
+            slot.classList.toggle('won', w === side);
+          }
+        }
+      });
+
+      document.querySelectorAll(`.pip[data-match="${m.id}"][data-side="A"]`).forEach((b,i)=>b.classList.toggle('active', !!docState.pips[m.id].A[i]));
+      document.querySelectorAll(`.pip[data-match="${m.id}"][data-side="B"]`).forEach((b,i)=>b.classList.toggle('active', !!docState.pips[m.id].B[i]));
+    });
+    const champ = document.getElementById('champion-name');
+    const finalWinner = state['final'].winnerName;
+    champ.textContent = finalWinner || 'TBD';
+    champ.classList.toggle('tbd', !finalWinner);
+    champ.classList.toggle('won', !!finalWinner);
+  }
+
+  function applyRemoteNames(){
+    document.querySelectorAll('[data-team]').forEach(el => {
+      const id = el.getAttribute('data-team');
+      const val = teamName(id);
+      if(document.activeElement !== el && el.textContent.trim() !== val) el.textContent = val;
+    });
+  }
+
+  function setSyncBadge(text, cls){
+    const badge = document.getElementById('syncBadge');
+    const t = document.getElementById('syncBadgeText');
+    badge.className = 'badge ' + cls;
+    t.textContent = text;
+  }
+
+  function setEditable(editable){
+    isEditor = editable;
+    document.querySelectorAll('[data-team]').forEach(el => { el.contentEditable = editable ? 'true' : 'false'; });
+    document.querySelectorAll('.pip').forEach(el => { el.disabled = !editable; });
+    document.getElementById('resetBtn').disabled = !editable;
+  }
+
+  let writing = false, writeQueued = false;
+  async function writeState(){
+    if(writing){ writeQueued = true; return; }
+    writing = true;
+    const { error } = await sb.from('bracket_state')
+      .update({ data: docState, updated_at: new Date().toISOString() })
+      .eq('id', 1);
+    writing = false;
+    if(error){
+      setEditable(false);
+      setSyncBadge('Live · not authorized to edit', 'viewonly');
+    }
+    if(writeQueued){ writeQueued = false; writeState(); }
+  }
+
+  document.getElementById('bracket').addEventListener('blur', (e) => {
+    if(!isEditor) return;
+    const el = e.target.closest('[data-team]');
+    if(!el) return;
+    const id = el.getAttribute('data-team');
+    docState.names[id] = el.textContent.trim() || ('Team ' + id.slice(1));
+    recompute(); drawConnectors(); writeState();
+  }, true);
+
+  document.getElementById('bracket').addEventListener('click', (e) => {
+    if(!isEditor) return;
+    const pip = e.target.closest('.pip');
+    if(!pip || pip.disabled) return;
+    const {match, side, game} = pip.dataset;
+    const gi = parseInt(game,10) - 1;
+    const opp = side === 'A' ? 'B' : 'A';
+    const wasActive = docState.pips[match][side][gi];
+    docState.pips[match][opp][gi] = false;
+    docState.pips[match][side][gi] = !wasActive;
+    recompute(); drawConnectors(); writeState();
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    if(!isEditor) return;
+    docState = defaultState();
+    applyRemoteNames(); recompute(); drawConnectors(); writeState();
+  });
+
+  // ---- Data load + realtime subscription ----
+  async function loadState(){
+    const { data, error } = await sb.from('bracket_state').select('data').eq('id', 1).single();
+    docState = mergeDefaults(data ? data.data : {});
+    applyRemoteNames(); recompute(); drawConnectors();
+  }
+  function subscribeRealtime(){
+    sb.channel('bracket-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bracket_state', filter: 'id=eq.1' }, (payload) => {
+        docState = mergeDefaults(payload.new ? payload.new.data : {});
+        applyRemoteNames(); recompute(); drawConnectors();
+      })
+      .subscribe();
+  }
+
+  // ---- Auth (magic link) ----
+  const authBox = document.getElementById('authBox');
+  function renderAuthSignedOut(){
+    authBox.innerHTML = `
+      <input type="email" id="emailInput" placeholder="you@email.com" autocomplete="email">
+      <button class="btn" id="sendLinkBtn" type="button">Sign in to edit</button>`;
+    document.getElementById('sendLinkBtn').addEventListener('click', async () => {
+      const email = document.getElementById('emailInput').value.trim();
+      if(!email) return;
+      document.getElementById('sendLinkBtn').textContent = 'Sending…';
+      const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+      authBox.innerHTML = error
+        ? `<span class="auth-note">Couldn't send link — try again.</span>`
+        : `<span class="auth-note">Check ${email} for a sign-in link.</span>`;
+    });
+  }
+  function renderAuthSignedIn(email){
+    authBox.innerHTML = `<span class="auth-note">Signed in as ${email}</span> <button class="btn" id="signOutBtn" type="button">Sign out</button>`;
+    document.getElementById('signOutBtn').addEventListener('click', () => sb.auth.signOut());
+  }
+
+  async function handleSession(session){
+    if(session && session.user){
+      renderAuthSignedIn(session.user.email);
+      setEditable(true);
+      setSyncBadge('Live · editing enabled', 'editing');
+    } else {
+      renderAuthSignedOut();
+      setEditable(false);
+      setSyncBadge('Live · view only', 'viewonly');
+    }
+  }
+
+  sb.auth.onAuthStateChange((_event, session) => handleSession(session));
+
+  // ---- Present / fullscreen mode ----
+  function enterPresent(){
+    document.body.classList.add('present');
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if(req) { try { req.call(el); } catch(e){} }
+    requestAnimationFrame(drawConnectors); setTimeout(drawConnectors, 300);
+  }
+  function exitPresent(){
+    document.body.classList.remove('present');
+    if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen();
+    requestAnimationFrame(drawConnectors); setTimeout(drawConnectors, 300);
+  }
+  document.getElementById('presentBtn').addEventListener('click', enterPresent);
+  document.getElementById('exitPresentBtn').addEventListener('click', exitPresent);
+  document.addEventListener('fullscreenchange', () => { if(!document.fullscreenElement) document.body.classList.remove('present'); requestAnimationFrame(drawConnectors); });
+  document.addEventListener('keydown', (e) => { if(e.key === 'Escape') exitPresent(); });
+
+  // ---- Tree connector lines ----
+  const edges = [];
+  matches.forEach(m => {
+    if(m.A.t === 'win') edges.push({from: m.A.id, to: m.id, side: 'A'});
+    if(m.B.t === 'win') edges.push({from: m.B.id, to: m.id, side: 'B'});
+  });
+  function drawConnectors(){
+    const roundsEl = document.getElementById('bracket');
+    const svg = document.getElementById('connectors');
+    const rect0 = roundsEl.getBoundingClientRect();
+    const w = roundsEl.scrollWidth, h = roundsEl.scrollHeight;
+    svg.setAttribute('width', w); svg.setAttribute('height', h);
+    svg.style.width = w + 'px'; svg.style.height = h + 'px';
+    svg.innerHTML = '';
+    edges.forEach(e => {
+      const fromEl = document.querySelector(`[data-match-id="${e.from}"]`);
+      const toEl = document.querySelector(`[data-row="${e.to}-${e.side}"]`);
+      if(!fromEl || !toEl) return;
+      const fr = fromEl.getBoundingClientRect(), tr = toEl.getBoundingClientRect();
+      const x1 = fr.right - rect0.left + roundsEl.scrollLeft;
+      const y1 = fr.top + fr.height/2 - rect0.top + roundsEl.scrollTop;
+      const x2 = tr.left - rect0.left + roundsEl.scrollLeft;
+      const y2 = tr.top + tr.height/2 - rect0.top + roundsEl.scrollTop;
+      const midX = x1 + (x2 - x1) / 2;
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d', `M ${x1} ${y1} H ${midX} V ${y2} H ${x2}`);
+      path.setAttribute('stroke', 'rgba(92,138,27,0.55)');
+      path.setAttribute('stroke-width', '1.6');
+      path.setAttribute('fill', 'none');
+      svg.appendChild(path);
+    });
+  }
+
+  recompute();
+  requestAnimationFrame(drawConnectors);
+  window.addEventListener('resize', () => requestAnimationFrame(drawConnectors));
+  window.addEventListener('load', () => requestAnimationFrame(drawConnectors));
+  setTimeout(drawConnectors, 400);
+
+  loadState().then(subscribeRealtime);
+  sb.auth.getSession().then(({data}) => handleSession(data.session));
+})();
+</script>
+</body>
+</html>
