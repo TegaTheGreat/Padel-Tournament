@@ -32,6 +32,9 @@
   .stat .num{font-family:var(--font-display);font-size:24px;color:var(--accent);line-height:1;}
   .stat .lbl{font-size:11px;color:var(--muted);margin-top:3px;}
 
+  #setupBanner{display:none;background:#FDF2E3;border:1px solid #E8B85A;color:#7A4E10;border-radius:10px;padding:12px 16px;font-size:13px;margin-bottom:20px;line-height:1.5;}
+  #setupBanner b{display:block;margin-bottom:3px;}
+
   .toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:10px;}
   .legend{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted);}
   .legend b{color:var(--ink);}
@@ -52,6 +55,8 @@
   .badge.editing{color:var(--accent);}
   .badge.viewonly .dot{background:#C9A227;}
   .badge.viewonly{color:#8A6D1A;}
+  .badge.error .dot{background:#C0392B;}
+  .badge.error{color:#C0392B;}
 
   .rounds{position:relative;display:flex;align-items:stretch;gap:34px;overflow-x:auto;padding:6px 6px 20px;}
   #connectors{position:absolute;top:0;left:0;pointer-events:none;z-index:0;}
@@ -93,7 +98,7 @@
   .roster-note li{margin-bottom:4px;}
 
   body.present{padding:18px 26px;}
-  body.present .toolbar .legend, body.present .roster-note, body.present .hero-sub, body.present .stats{display:none;}
+  body.present .toolbar .legend, body.present .roster-note, body.present .hero-sub, body.present .stats, body.present #setupBanner{display:none;}
   body.present header.hero{margin-bottom:16px;padding-bottom:14px;}
   body.present h1{font-size:clamp(26px,3vw,36px);}
   body.present{--name-size:19px; --pip-size:30px; --title-size:19px; --meta-size:12px;}
@@ -127,6 +132,8 @@
     </div>
   </header>
 
+  <div id="setupBanner"><b>Setup isn't finished yet</b><span id="setupBannerText"></span></div>
+
   <div class="toolbar">
     <div class="legend">
       <span><b>Names:</b> tap to rename.</span>
@@ -141,7 +148,7 @@
   </div>
 
   <div class="status-row">
-    <span class="badge viewonly" id="syncBadge"><span class="dot"></span><span id="syncBadgeText">Connecting…</span></span>
+    <span class="badge viewonly" id="syncBadge"><span class="dot"></span><span id="syncBadgeText">Checking setup…</span></span>
   </div>
 
   <div class="rounds" id="bracket">
@@ -179,7 +186,7 @@
       <li>14 teams go straight into the Round of 16 — type their names directly into the draw.</li>
       <li>The other 4 teams play two play-in matches; the two winners fill the last 2 Round of 16 spots.</li>
       <li>Every match is best of 3 games, standard padel/tennis scoring — 15, 30, 40, Game (win by two at deuce). Tap 1 / 2 / 3 for whoever wins that game; first to 2 games wins the match and advances automatically.</li>
-      <li><b>Editing:</b> enter your email above and click the link we send you — no password. Only pre-approved emails can make changes; anyone else can watch it update live, read-only.</li>
+      <li><b>Editing:</b> enter your email in the box next to "Reset all" / "Present on screen" and click the link we send you — no password. Only pre-approved emails can make changes; anyone else can watch it update live, read-only.</li>
       <li><b>Projecting:</b> open this page on the display laptop and hit "Present on screen" for a fullscreen, enlarged view. It updates live as your scorers enter results elsewhere.</li>
     </ul>
   </p>
@@ -190,15 +197,14 @@
 
 <script>
 // =====================================================================
-// FILL THESE IN before deploying — Supabase → Settings → API
+// FILL THESE IN before deploying — Supabase → Settings → Data API (URL)
+// and Settings → API Keys (the anon / publishable key)
 // =====================================================================
-const SUPABASE_URL = "http://uqtqsevuckizsiceqkkp.supabase.co";
+const SUPABASE_URL = "https://uqtqsevuckizsiceqkkp.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_-7OwkgFWawN_txT3Ex_-kg_apRYFcJp";
 // =====================================================================
 
 (function(){
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
   const T = id => ({t:'team', id});
   const W = id => ({t:'win', id});
 
@@ -222,6 +228,11 @@ const SUPABASE_ANON_KEY = "sb_publishable_-7OwkgFWawN_txT3Ex_-kg_apRYFcJp";
     {id:'final', round:'round-final', label:'Final', A:W('sf1'), B:W('sf2')},
   ];
 
+  // =====================================================================
+  // 1) BUILD THE BRACKET UI — this always runs, whether or not Supabase
+  //    is configured yet, so the page never looks "broken" while you
+  //    finish setup.
+  // =====================================================================
   function pipsHTML(matchId, side){
     let html = '<div class="pips">';
     for(let g=1; g<=3; g++){
@@ -329,26 +340,17 @@ const SUPABASE_ANON_KEY = "sb_publishable_-7OwkgFWawN_txT3Ex_-kg_apRYFcJp";
     t.textContent = text;
   }
 
+  function showSetupBanner(msg){
+    const b = document.getElementById('setupBanner');
+    document.getElementById('setupBannerText').textContent = msg;
+    b.style.display = 'block';
+  }
+
   function setEditable(editable){
     isEditor = editable;
     document.querySelectorAll('[data-team]').forEach(el => { el.contentEditable = editable ? 'true' : 'false'; });
     document.querySelectorAll('.pip').forEach(el => { el.disabled = !editable; });
     document.getElementById('resetBtn').disabled = !editable;
-  }
-
-  let writing = false, writeQueued = false;
-  async function writeState(){
-    if(writing){ writeQueued = true; return; }
-    writing = true;
-    const { error } = await sb.from('bracket_state')
-      .update({ data: docState, updated_at: new Date().toISOString() })
-      .eq('id', 1);
-    writing = false;
-    if(error){
-      setEditable(false);
-      setSyncBadge('Live · not authorized to edit', 'viewonly');
-    }
-    if(writeQueued){ writeQueued = false; writeState(); }
   }
 
   document.getElementById('bracket').addEventListener('blur', (e) => {
@@ -379,57 +381,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_-7OwkgFWawN_txT3Ex_-kg_apRYFcJp";
     applyRemoteNames(); recompute(); drawConnectors(); writeState();
   });
 
-  // ---- Data load + realtime subscription ----
-  async function loadState(){
-    const { data, error } = await sb.from('bracket_state').select('data').eq('id', 1).single();
-    docState = mergeDefaults(data ? data.data : {});
-    applyRemoteNames(); recompute(); drawConnectors();
-  }
-  function subscribeRealtime(){
-    sb.channel('bracket-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bracket_state', filter: 'id=eq.1' }, (payload) => {
-        docState = mergeDefaults(payload.new ? payload.new.data : {});
-        applyRemoteNames(); recompute(); drawConnectors();
-      })
-      .subscribe();
-  }
-
-  // ---- Auth (magic link) ----
-  const authBox = document.getElementById('authBox');
-  function renderAuthSignedOut(){
-    authBox.innerHTML = `
-      <input type="email" id="emailInput" placeholder="you@email.com" autocomplete="email">
-      <button class="btn" id="sendLinkBtn" type="button">Sign in to edit</button>`;
-    document.getElementById('sendLinkBtn').addEventListener('click', async () => {
-      const email = document.getElementById('emailInput').value.trim();
-      if(!email) return;
-      document.getElementById('sendLinkBtn').textContent = 'Sending…';
-      const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
-      authBox.innerHTML = error
-        ? `<span class="auth-note">Couldn't send link — try again.</span>`
-        : `<span class="auth-note">Check ${email} for a sign-in link.</span>`;
-    });
-  }
-  function renderAuthSignedIn(email){
-    authBox.innerHTML = `<span class="auth-note">Signed in as ${email}</span> <button class="btn" id="signOutBtn" type="button">Sign out</button>`;
-    document.getElementById('signOutBtn').addEventListener('click', () => sb.auth.signOut());
-  }
-
-  async function handleSession(session){
-    if(session && session.user){
-      renderAuthSignedIn(session.user.email);
-      setEditable(true);
-      setSyncBadge('Live · editing enabled', 'editing');
-    } else {
-      renderAuthSignedOut();
-      setEditable(false);
-      setSyncBadge('Live · view only', 'viewonly');
-    }
-  }
-
-  sb.auth.onAuthStateChange((_event, session) => handleSession(session));
-
-  // ---- Present / fullscreen mode ----
+  // present mode
   function enterPresent(){
     document.body.classList.add('present');
     const el = document.documentElement;
@@ -447,7 +399,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_-7OwkgFWawN_txT3Ex_-kg_apRYFcJp";
   document.addEventListener('fullscreenchange', () => { if(!document.fullscreenElement) document.body.classList.remove('present'); requestAnimationFrame(drawConnectors); });
   document.addEventListener('keydown', (e) => { if(e.key === 'Escape') exitPresent(); });
 
-  // ---- Tree connector lines ----
+  // connector lines
   const edges = [];
   matches.forEach(m => {
     if(m.A.t === 'win') edges.push({from: m.A.id, to: m.id, side: 'A'});
@@ -486,8 +438,95 @@ const SUPABASE_ANON_KEY = "sb_publishable_-7OwkgFWawN_txT3Ex_-kg_apRYFcJp";
   window.addEventListener('load', () => requestAnimationFrame(drawConnectors));
   setTimeout(drawConnectors, 400);
 
-  loadState().then(subscribeRealtime);
-  sb.auth.getSession().then(({data}) => handleSession(data.session));
+  // =====================================================================
+  // 2) CONNECT TO SUPABASE — separate from the UI above, so a bad or
+  //    missing key never breaks the bracket itself, just the sync.
+  // =====================================================================
+  let writeState = async function(){}; // no-op until Supabase is ready
+
+  const looksUnconfigured =
+    !SUPABASE_URL || !SUPABASE_ANON_KEY ||
+    SUPABASE_URL.indexOf('YOUR_') === 0 || SUPABASE_ANON_KEY.indexOf('YOUR_') === 0;
+
+  const authBox = document.getElementById('authBox');
+
+  if(looksUnconfigured){
+    setSyncBadge('Setup needed', 'error');
+    showSetupBanner('Open index.html and paste your real Supabase Project URL and anon key in near the top of the <script> tag (see setup.sql / the setup steps). Until then this is just a local preview — nothing saves or syncs.');
+    authBox.innerHTML = `<span class="auth-note">Sign-in will appear here once setup is finished.</span>`;
+  } else {
+    try {
+      const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      writeState = async function(){
+        const { error } = await sb.from('bracket_state')
+          .update({ data: docState, updated_at: new Date().toISOString() })
+          .eq('id', 1);
+        if(error){
+          setEditable(false);
+          setSyncBadge('Live · not authorized to edit', 'viewonly');
+        }
+      };
+
+      function renderAuthSignedOut(){
+        authBox.innerHTML = `
+          <input type="email" id="emailInput" placeholder="you@email.com" autocomplete="email">
+          <button class="btn" id="sendLinkBtn" type="button">Sign in to edit</button>`;
+        document.getElementById('sendLinkBtn').addEventListener('click', async () => {
+          const email = document.getElementById('emailInput').value.trim();
+          if(!email) return;
+          document.getElementById('sendLinkBtn').textContent = 'Sending…';
+          const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+          authBox.innerHTML = error
+            ? `<span class="auth-note">Couldn't send link — try again.</span>`
+            : `<span class="auth-note">Check ${email} for a sign-in link.</span>`;
+        });
+      }
+      function renderAuthSignedIn(email){
+        authBox.innerHTML = `<span class="auth-note">Signed in as ${email}</span> <button class="btn" id="signOutBtn" type="button">Sign out</button>`;
+        document.getElementById('signOutBtn').addEventListener('click', () => sb.auth.signOut());
+      }
+      function handleSession(session){
+        if(session && session.user){
+          renderAuthSignedIn(session.user.email);
+          setEditable(true);
+          setSyncBadge('Live · editing enabled', 'editing');
+        } else {
+          renderAuthSignedOut();
+          setEditable(false);
+          setSyncBadge('Live · view only', 'viewonly');
+        }
+      }
+      sb.auth.onAuthStateChange((_event, session) => handleSession(session));
+
+      async function loadState(){
+        const { data, error } = await sb.from('bracket_state').select('data').eq('id', 1).single();
+        if(error){
+          setSyncBadge('Could not reach database', 'error');
+          showSetupBanner('Connected to Supabase, but reading bracket_state failed: ' + error.message + '. Did you run setup.sql?');
+          return;
+        }
+        docState = mergeDefaults(data ? data.data : {});
+        applyRemoteNames(); recompute(); drawConnectors();
+      }
+      function subscribeRealtime(){
+        sb.channel('bracket-sync')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'bracket_state', filter: 'id=eq.1' }, (payload) => {
+            docState = mergeDefaults(payload.new ? payload.new.data : {});
+            applyRemoteNames(); recompute(); drawConnectors();
+          })
+          .subscribe();
+      }
+
+      loadState().then(subscribeRealtime);
+      sb.auth.getSession().then(({data}) => handleSession(data.session));
+
+    } catch(err){
+      setSyncBadge('Setup needed', 'error');
+      showSetupBanner('Could not connect to Supabase — double-check the URL and key are pasted in correctly, with no extra spaces or quotes.');
+      authBox.innerHTML = `<span class="auth-note">Sign-in unavailable until this is fixed.</span>`;
+    }
+  }
 })();
 </script>
 </body>
